@@ -1,38 +1,35 @@
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+
 public class Test {
-    private int counter;
-
     public static void main(String[] args) throws InterruptedException {
-        Test test = new Test();
-        test.doWork();
+        ExecutorService executorService = Executors.newFixedThreadPool(2);
+
+        for (int i = 0; i < 5; i++) {
+            executorService.submit(new Work(i));
+        }
+        executorService.shutdown();
+        System.out.println("All tasks submitted");
+
+        executorService.awaitTermination(1, TimeUnit.DAYS);
     }
-    public synchronized void increment() {
-        counter++;
+}
+class Work implements Runnable {
+    private int id;
+    public Work(int id) {
+        this.id = id;
     }
-
-    public void doWork() throws InterruptedException {
-        Thread thread1 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < 10000; i++) {
-                    increment();
-                }
-            }
-        });
-
-        Thread thread2 = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                for (int i = 0; i < 10000; i++) {
-                    increment();
-                }
-            }
-        });
-        thread1.start();
-        thread2.start();
-
-        thread1.join();
-        thread2.join();
-
-        System.out.println(counter);
+    @Override
+    public void run() {
+        try {
+            Thread.sleep(5000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        System.out.println("Work " + id + " was complited");
     }
 }
