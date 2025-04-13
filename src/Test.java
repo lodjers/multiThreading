@@ -1,35 +1,51 @@
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 public class Test {
+    private static BlockingQueue<Integer> queue = new ArrayBlockingQueue<>(10);
     public static void main(String[] args) throws InterruptedException {
-        ExecutorService executorService = Executors.newFixedThreadPool(2);
+        Thread thread1 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    produce();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        Thread thread2 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    consumer();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
+        thread1.start();
+        thread2.start();
 
-        for (int i = 0; i < 5; i++) {
-            executorService.submit(new Work(i));
-        }
-        executorService.shutdown();
-        System.out.println("All tasks submitted");
+        thread1.join();
+        thread2.join();
+    }
+    private static void produce() throws InterruptedException {
+        Random random = new Random();
 
-        executorService.awaitTermination(1, TimeUnit.DAYS);
-    }
-}
-class Work implements Runnable {
-    private int id;
-    public Work(int id) {
-        this.id = id;
-    }
-    @Override
-    public void run() {
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
+        while(true) {
+            queue.put(random.nextInt(100));
         }
-        System.out.println("Work " + id + " was complited");
+    }
+    private static void consumer() throws InterruptedException {
+        Random random = new Random();
+        while(true) {
+            Thread.sleep(100);
+            if (random.nextInt(10) == 5) {
+                System.out.println(queue.take());
+                System.out.println("Queue size is " + queue.size());
+            }
+        }
     }
 }
