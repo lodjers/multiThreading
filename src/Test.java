@@ -1,59 +1,118 @@
+import java.util.Random;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 
 public class Test {
     public static void main(String[] args) throws InterruptedException {
-        ExecutorService executorService = Executors.newFixedThreadPool(200);
 
-        Connection connection = Connection.getConnection();
-        for (int i = 0; i < 10; i++) {
-            executorService.submit(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        connection.work();
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+        Runner runner = new Runner();
+        Thread thread1 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runner.firstThread();
+            }
+        });
+        Thread thread2 = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                runner.secondThread();
+            }
+        });
+
+        thread1.start();
+        thread2.start();
+
+        thread1.join();
+        thread2.join();
+
+        runner.finished();
+    }
+
+}
+class Runner {
+    private Account account1 = new Account();
+    private Account account2 = new Account();
+    private Lock lock1 = new ReentrantLock();
+    private Lock lock2 = new ReentrantLock();
+
+    private void takeLocks(Lock lock1, Lock lock2) {
+        boolean firstLockTaken = false;
+        boolean secondLockTaken = false;
+        while (true) {
+            try {
+                firstLockTaken = lock1.tryLock();
+                secondLockTaken = lock2.tryLock();
+            } finally {
+                if (firstLockTaken && secondLockTaken) {
+                    return;
                 }
-            });
+                if (firstLockTaken) {
+                    lock1.unlock();
+                }
+                if (secondLockTaken) {
+                    lock2.unlock();
+                }
+            }
+            try {
+                Thread.sleep(1);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
-        executorService.shutdown();
-        executorService.awaitTermination(1, TimeUnit.DAYS);
+    }
+    public void firstThread() {
+        Random random = new Random();
+        for(int i = 0; i < 10000; i++) {
+            takeLocks(lock1, lock2);
+            try {
+                Account.transfer(account1, account2, random.nextInt(100));
+            } finally {
+                lock1.unlock();
+                lock2.unlock();
+            }
+        }
+    }
+    public void secondThread() {
+        Random random = new Random();
+        for(int i = 0; i < 10000; i++) {
+            takeLocks(lock2, lock1);
+            try {
+                Account.transfer(account2, account1, random.nextInt(100));
+            } finally {
+                lock1.unlock();
+                lock2.unlock();
+            }
+        }
+    }
+    public void finished() {
+        System.out.println(account1.getBalance());
+        System.out.println(account2.getBalance());
+        System.out.println("Total balance " + (account1.getBalance() + account2.getBalance()));
     }
 }
-class Connection {
-    private static Connection connection = new Connection();
-    private int connectionsCount;
-    private Semaphore semaphore = new Semaphore(10);
-    private Connection() {
-    }
-    public static Connection getConnection() {
-        return connection;
+
+class Account {
+    private int balance = 10000;
+
+    public void deposit(int amount) {
+        balance += amount;
     }
 
-    public void work() throws InterruptedException {
-        semaphore.acquire();
-        try {
-            doWork();
-        } finally {
-            semaphore.release();
-        }
+    public void withdraw(int amount) {
+        balance -= amount;
     }
 
-    private void doWork() throws InterruptedException {
-        synchronized (this) {
-            connectionsCount++;
-            System.out.println(connectionsCount);
-        }
+    public int getBalance() {
+        return balance;
+    }
 
-        Thread.sleep(5000);
-
-        synchronized (this) {
-            connectionsCount--;
-        }
+    public static void transfer(Account acc1, Account acc2, int amount) {
+        acc1.withdraw(amount);
+        acc2.deposit(amount);
     }
 }
