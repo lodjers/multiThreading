@@ -1,35 +1,38 @@
 import java.util.Random;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
-
+import java.util.concurrent.*;
 
 public class Test {
     public static void main(String[] args) throws InterruptedException {
-        Thread thread = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                Random random = new Random();
-                for (int i = 0; i < 1_000_000_000; i++) {
-                    if(Thread.currentThread().isInterrupted()) {
-                        System.out.println("Thread was interrupted");
-                        break;
-                    }
-                    Math.sin(random.nextDouble());
-                }
+        ExecutorService executorService = Executors.newFixedThreadPool(1);
+        Future<Integer> future = executorService.submit(() -> {
+            System.out.println("Starting");
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
+            System.out.println("Finished");
+
+            Random random = new Random();
+            int randomValue = random.nextInt();
+            if (randomValue < 5) {
+                throw new Exception("Something bad happened");
+            }
+            return random.nextInt(10);
         });
-        System.out.println("Starting thread");
 
-        thread.start();
+        executorService.shutdown();
 
-        Thread.sleep(1000);
-        thread.interrupt();
-
-        thread.join();
-        System.out.println("Thread has finished");
+        try {
+            int result = future.get();
+            System.out.println(result);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            Throwable ex = e.getCause();
+            System.out.println(ex.getMessage());
+        }
     }
+
+
 }
